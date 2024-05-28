@@ -21,7 +21,7 @@ class Car:
         self.rect.topleft = (0, (HEIGHT - self.height) // 2)
         
         self.speed = 0 # Initial speed of the car
-        self.max_speed = 3
+        self.max_speed = 6
         self.acceleration = 0.3
         self.deceleration = 0.6
 
@@ -55,6 +55,10 @@ class Pedestrian:
         self.rect.topleft = ((WIDTH - self.width) // 2, 0)
 
         self.speed = 2
+
+        # The pedestrian is entering the intersection initially
+        # Update this flag after he pass the middle of the screen
+        self.entering = True
 
     def update(self):
         self.rect.y += self.speed

@@ -53,7 +53,7 @@ def predict(screenshot):
 
     return xyxys, confidences, class_ids
 
-def car_control_logic(car: Car, xyxys, confidences, class_ids, distance_threshold=300):
+def car_control_logic(car: Car, pedestrian: Pedestrian, xyxys, confidences, class_ids, distance_threshold=300):
     if len(xyxys) == 0:
         car.decelerate_flag = False
         return
@@ -70,8 +70,8 @@ def car_control_logic(car: Car, xyxys, confidences, class_ids, distance_threshol
         midleft = (topleft[0], topleft[1] + (PEDESTRIAN_HEIGHT // 2)) 
 
         distance = get_distance(car_head, midleft)
-        print(distance)
-        if distance <= distance_threshold:
+        print(f"Distance: {distance}, Threshold: {distance_threshold}")  # Debug print
+        if distance <= distance_threshold and pedestrian.entering is True:
             car.decelerate_flag = True
         else:
             car.decelerate_flag = False
@@ -109,15 +109,19 @@ def main():
                             # Start a new round
                             car.rect.x = 0
                             pedestrian.rect.y = 0
+                            pedestrian.entering = True
                             paused = False
 
         if not paused:
-            car_control_logic(car, xyxys, confidences, class_ids)
+            car_control_logic(car, pedestrian, xyxys, confidences, class_ids)
             # move the car
             car.update()
             print(car.decelerate_flag)
             # Move pedestrian
             pedestrian.update()
+            # Check if the pedestrian is leaving the intersection
+            if pedestrian.rect.y >= HEIGHT // 2:
+                pedestrian.entering = False
 
             screen.fill(WHITE)
 
