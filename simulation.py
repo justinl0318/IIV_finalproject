@@ -10,7 +10,9 @@ from object import Car, Pedestrian
 from object import CAR_WIDTH, CAR_HEIGHT
 from object import PEDESTRIAN_WIDTH, PEDESTRIAN_HEIGHT
 from YOLO import model
-from trajectory_prediction import weighted_moving_average
+from trajectory_prediction import weighted_moving_average, RNN_prediction
+import numpy as np
+import tensorflow as tf
 
 # Initialize Pygame
 pygame.init()
@@ -33,6 +35,10 @@ GREEN = (0, 255, 0)
 
 # the number of pedestrian's future steps that the car should predict
 PREDICT_STEPS = 100
+
+# the number of past trajectory coordinates that should be taken 
+# into consideration to compute weighted moving average
+ACCOUNTED_LENGTH = 10
 
 # Frame rate
 clock = pygame.time.Clock()
@@ -114,20 +120,34 @@ def car_control_logic_passive(car: Car, pedestrians: list[Pedestrian], xyxys, co
     car_head = car.rect.midright
     car.decelerate_flag = False
 
+    prediction_strategy = 1
+
     for pedestrian in pedestrians:
-        if len(pedestrian.trajectory) <= 10: break
+        if len(pedestrian.trajectory) <= 20: break
 
         past_trajectory = pedestrian.trajectory[:] # copy
         future_trajectory = []
-        for _ in range(PREDICT_STEPS):
-            
-            predicted_direction = weighted_moving_average(past_trajectory)
-            predicted_step_x = past_trajectory[-1][0] + predicted_direction[0] * pedestrian.speed
-            predicted_step_y = past_trajectory[-1][1] + predicted_direction[1] * pedestrian.speed
-            
-            past_trajectory.append((predicted_step_x, predicted_step_y))
-            future_trajectory.append((predicted_step_x, predicted_step_y))
-        
+
+        if prediction_strategy == 0: # WMA
+            for _ in range(PREDICT_STEPS):
+                predicted_direction = weighted_moving_average(past_trajectory)
+                predicted_step_x = past_trajectory[-1][0] + predicted_direction[0] * pedestrian.speed
+                predicted_step_y = past_trajectory[-1][1] + predicted_direction[1] * pedestrian.speed
+                
+                past_trajectory.append((predicted_step_x, predicted_step_y))
+                future_trajectory.append((predicted_step_x, predicted_step_y))
+
+        elif prediction_strategy == 1: # RNN
+            predicted_direction = RNN_prediction(pedestrian.trajectory)
+            for i in range(PREDICT_STEPS):
+                predicted_step_x = past_trajectory[-1][0] + predicted_direction[0] * pedestrian.speed
+                predicted_step_y = past_trajectory[-1][1] + predicted_direction[1] * pedestrian.speed
+
+                past_trajectory.append((predicted_step_x, predicted_step_y))
+                future_trajectory.append((predicted_step_x, predicted_step_y))
+                # past_trajectory.append((pred_x + i * pedestrian.speed, pred_y + i * pedestrian.speed))
+                # future_trajectory.append((pred_x + i * pedestrian.speed, pred_y + i * pedestrian.speed))
+
         # centered trajectory
         future_centered_trajectory = [(x + pedestrian.width // 2, y) for x, y in future_trajectory]
         pygame.draw.lines(screen, RED, False, future_centered_trajectory, 2)
@@ -147,6 +167,7 @@ def car_control_logic_passive(car: Car, pedestrians: list[Pedestrian], xyxys, co
     #             car.decelerate_flag = True
     #             break
 
+dataset = []
 
 def main(flag: bool, granularity_size: int, n_rounds: int):
     running = True # game loop
@@ -186,8 +207,8 @@ def main(flag: bool, granularity_size: int, n_rounds: int):
             rounds += 1
             car.start_new_round()
             for pedestrian in pedestrians:
+                pedestrian.case += 1
                 pedestrian.start_new_round()
-
 
         if paused % 2 == 0:
             # clear screen first
@@ -204,6 +225,7 @@ def main(flag: bool, granularity_size: int, n_rounds: int):
             
             # Move pedestrian
             for pedestrian in pedestrians:
+                dataset.append((pedestrian.rect.x, pedestrian.rect.y))
                 pedestrian.update()
 
                 if flag == "active":
@@ -242,3 +264,6 @@ if __name__ == "__main__":
     granularity_size = args.granularity_size
     n_rounds = args.n_rounds
     main(flag, granularity_size, n_rounds)
+
+    dataset = np.array(dataset)
+    # np.save("dataset.npy", dataset)

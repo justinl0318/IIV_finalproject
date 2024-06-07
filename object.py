@@ -67,6 +67,8 @@ class Pedestrian:
 
         self.speed = 9
 
+        self.case = 0
+
         # The pedestrian is entering the intersection initially
         # Update this flag after he pass the middle of the screen
         self.entering = True
@@ -76,8 +78,6 @@ class Pedestrian:
 
     def start_new_round(self):
         self.entering = True
-
-        self.case = 3
 
         # Generate intermediate waypoints
         self.waypoints = self.generate_waypoints()
