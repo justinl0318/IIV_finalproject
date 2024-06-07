@@ -11,6 +11,7 @@ from object import CAR_WIDTH, CAR_HEIGHT
 from object import PEDESTRIAN_WIDTH, PEDESTRIAN_HEIGHT
 from YOLO import model
 from trajectory_prediction import weighted_moving_average, RNN_prediction
+from ttc_func import calculate_ttc
 import numpy as np
 import tensorflow as tf
 
@@ -96,7 +97,7 @@ def predict(screenshot):
     return xyxys, confidences, class_ids
 
 # active prediction of pedestrian trajectory
-def car_control_logic_active(car: Car, pedestrians: list[Pedestrian], distance_threshold=200):
+def car_control_logic_active(car: Car, pedestrians: list[Pedestrian], metric, distance_threshold=200):
 
     # get the coordinate of car's head
     car_head = car.rect.midright
@@ -105,13 +106,31 @@ def car_control_logic_active(car: Car, pedestrians: list[Pedestrian], distance_t
     for pedestrian in pedestrians:
         if pedestrian.pedestrian_id not in precomputed_paths:
             continue
-
-        if len(precomputed_paths[pedestrian.pedestrian_id]["precomputed_path"]) >= 2:
+        
+        path = precomputed_paths[pedestrian.pedestrian_id]["precomputed_path"]
+        if len(path) >= 2:
             precomputed_centered_path = [(x + pedestrian.width // 2, y) for x, y in precomputed_paths[pedestrian.pedestrian_id]["precomputed_path"]]
             pygame.draw.lines(screen, RED, False, precomputed_centered_path, 3)
 
+        if metric == 'ttc':
+            car_ttc, pedestrian_ttc, pos = calculate_ttc(car, pedestrian, path)
+
+            # Deceleration logic
+            if car_ttc == -1:
+                continue
+            elif -30 < car_ttc - pedestrian_ttc and car_ttc - pedestrian_ttc < 30 and pos[0] - car.rect.x < 400:
+                car.decelerate_flag = True
+                # print("car ttc: " + str(car_ttc) + "pedestrian ttc: " + str(pedestrian_ttc))
+                break
+
+        elif metric == 'distance':
+            dist = get_distance(car_head, (pedestrian.rect.x, pedestrian.rect.y))
+            if dist <= distance_threshold and pedestrian.rect.x > car_head[0]:
+                car.decelerate_flag = True
+                break
+
 # passive prediction of pedestrian trajectory
-def car_control_logic_passive(car: Car, pedestrians: list[Pedestrian], xyxys, confidences, class_ids, distance_threshold=200):
+def car_control_logic_passive(car: Car, pedestrians: list[Pedestrian], xyxys, confidences, class_ids, metric, distance_threshold=200):
     if len(xyxys) == 0:
         car.decelerate_flag = False
         return
@@ -152,24 +171,28 @@ def car_control_logic_passive(car: Car, pedestrians: list[Pedestrian], xyxys, co
         future_centered_trajectory = [(x + pedestrian.width // 2, y) for x, y in future_trajectory]
         pygame.draw.lines(screen, RED, False, future_centered_trajectory, 2)
 
-    # for index, xyxy in enumerate(xyxys):
-    #     if class_ids[index] == 2: # skip car
-    #         continue
+        if metric == 'ttc':
+            print(future_centered_trajectory)
+            car_ttc, pedestrian_ttc, pos = calculate_ttc(car, pedestrian, future_centered_trajectory)
 
-    #     for pedestrian in pedestrians:
-    #         topleft = (int(xyxy[0]), int(xyxy[1]))
-    #         # get mid left coordinate of pedestrian
-    #         midleft = (topleft[0], topleft[1] + (PEDESTRIAN_HEIGHT // 2)) 
+            # Deceleration logic
+            if car_ttc == -1:
+                continue
+            elif -30 < car_ttc - pedestrian_ttc and car_ttc - pedestrian_ttc < 30 and pos[0] - car.rect.x < 400:
+                car.decelerate_flag = True
+                # print("car ttc: " + str(car_ttc) + "pedestrian ttc: " + str(pedestrian_ttc))
+                break
+        else:
+            distance = get_distance(car_head, (pedestrian.rect.x, pedestrian.rect.y))
+            # print(f"Distance: {distance}, Threshold: {distance_threshold}") 
+            if distance <= distance_threshold and pedestrian.rect.x > car_head[0]:
+                car.decelerate_flag = True
+                break
 
-    #         distance = get_distance(car_head, midleft)
-    #         print(f"Distance: {distance}, Threshold: {distance_threshold}")  # Debug print
-    #         if distance <= distance_threshold and pedestrian.entering is True:
-    #             car.decelerate_flag = True
-    #             break
 
 dataset = []
 
-def main(flag: bool, granularity_size: int, n_rounds: int):
+def main(flag: bool, granularity_size: int, n_rounds: int, metric: bool):
     running = True # game loop
     car = Car(CAR_IMAGE)
     num_pedestrian = 1
@@ -215,9 +238,9 @@ def main(flag: bool, granularity_size: int, n_rounds: int):
             screen.fill(WHITE)
 
             if flag == "active":
-                car_control_logic_active(car, pedestrians)
+                car_control_logic_active(car, pedestrians, metric)
             elif flag == "passive":
-                car_control_logic_passive(car, pedestrians, xyxys, confidences, class_ids)    
+                car_control_logic_passive(car, pedestrians, xyxys, confidences, class_ids, metric)    
             
             # move the car
             car.update()
@@ -258,12 +281,14 @@ if __name__ == "__main__":
     parser.add_argument("--flag", type=str, default="passive", choices=["active", "passive"], help="active or passive pedestrian detection")
     parser.add_argument("--granularity_size", type=int, default=10, help="Granularity size for collision detection")
     parser.add_argument("--n_rounds", type=int, default=5, help="Number of rounds to run")
+    parser.add_argument("--metric", type=str, default="distance", choices=["distance", "ttc"], help="Collision avoidance metric (distance or ttc)")
     args = parser.parse_args()
 
     flag = args.flag
     granularity_size = args.granularity_size
     n_rounds = args.n_rounds
-    main(flag, granularity_size, n_rounds)
+    metric = args.metric
+    main(flag, granularity_size, n_rounds, metric)
 
     dataset = np.array(dataset)
     # np.save("dataset.npy", dataset)

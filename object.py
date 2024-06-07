@@ -67,7 +67,7 @@ class Pedestrian:
 
         self.speed = 9
 
-        self.case = 0
+        self.case = random.randrange(4)
 
         # The pedestrian is entering the intersection initially
         # Update this flag after he pass the middle of the screen
