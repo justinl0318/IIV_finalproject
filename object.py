@@ -4,7 +4,7 @@ import math
 import requests
 
 # Screen dimensions
-WIDTH, HEIGHT = 1600, 800
+WIDTH, HEIGHT = 1400, 800
 CAR_WIDTH, CAR_HEIGHT = 200, 120
 PEDESTRIAN_WIDTH, PEDESTRIAN_HEIGHT = 100, 140
 
@@ -26,10 +26,10 @@ class Car:
         self.rect = self.image.get_rect()
         self.rect.topleft = (0, (HEIGHT - self.height) // 2)
         
-        self.max_speed = 10
+        self.max_speed = 12
         self.speed = self.max_speed
-        self.acceleration = 0.3
-        self.deceleration = 0.6
+        self.acceleration = 1
+        self.deceleration = 2
 
         self.decelerate_flag = False
 
@@ -62,8 +62,10 @@ class Pedestrian:
         self.width, self.height = self.image.get_size()
         
         self.rect = self.image.get_rect()
+        self.start = ((WIDTH - self.width) // 2, 0)
+        self.rect.topleft = self.start
 
-        self.speed = 4
+        self.speed = 9
 
         # The pedestrian is entering the intersection initially
         # Update this flag after he pass the middle of the screen
@@ -75,20 +77,10 @@ class Pedestrian:
     def start_new_round(self):
         self.entering = True
 
-        # Set the initial position 
-        initial_x = random.randint(0, WIDTH - self.width)
-        self.rect.topleft = (initial_x, 0)
-        self.initial_pos = (self.rect.x, self.rect.y)
-
-        self.make_u_turn = random.random() > 0.5
-        # Set the final target position 
-        if self.make_u_turn == True:
-            self.final_pos = (self.initial_pos[0] + random.randint(-100, 100), 0)
-        else:     
-            self.final_pos = (self.initial_pos[0] + random.randint(-100, 100), HEIGHT)
+        self.case = 3
 
         # Generate intermediate waypoints
-        self.waypoints = self.generate_waypoints(self.initial_pos, self.final_pos)
+        self.waypoints = self.generate_waypoints()
         self.current_waypoint_index = 0
 
         # precompute the path based on waypoints
@@ -98,44 +90,34 @@ class Pedestrian:
         # store past trajectory
         self.trajectory = []
         
-    def generate_waypoints(self, start, end):
-        waypoints = [start]
-        num_turns = random.randint(2, 5)
-        min_x = min(self.initial_pos[0], self.final_pos[0])
-        max_x = max(self.initial_pos[0], self.final_pos[0])
-        prev_y = start[1]
-        if self.make_u_turn == True:
-            # the y coordinate at which the pedestrian will make a u turn
-            middle_y = (HEIGHT - self.height) // 2 - 70
-            # go down
-            for _ in range(num_turns // 2):
-                waypoints_x = random.randint(min_x, max_x)
-                waypoints_y = random.randint(prev_y, middle_y)
-                waypoints.append((waypoints_x, waypoints_y))
+    def generate_waypoints(self):
+        waypoints = [self.start]
+        middle_x = (WIDTH - self.width) // 2
+        middle_y = HEIGHT // 2
+        end_y = HEIGHT
 
-                prev_y = waypoints_y # update prev_y
+        if self.case == 0: # straight line
+            self.end = (middle_x, end_y)
+            waypoints.append(self.end)
 
-            waypoints.append((waypoints[-1][0], middle_y))
+        elif self.case == 1: # go right a little bit and go back to left
+            self.mid = (middle_x + 200, middle_y - 100)
+            self.end = (middle_x, end_y)
+            waypoints.append(self.mid)
+            waypoints.append(self.end)
 
-            # go up
-            prev_y = middle_y
-            for _ in range(num_turns // 2, num_turns):
-                waypoints_x = random.randint(min_x, max_x)
-                waypoints_y = random.randint(0, prev_y)
-                waypoints.append((waypoints_x, waypoints_y))
+        elif self.case == 2: # bus stop case
+            self.mid = (middle_x, middle_y - 100)
+            self.end = (middle_x - 200, end_y)
+            waypoints.append(self.mid)
+            waypoints.append(self.end)
 
-                prev_y = waypoints_y
-            
-            waypoints.append(end)
-        else:
-            for _ in range(num_turns):
-                waypoints_x = random.randint(min_x, max_x)
-                waypoints_y = random.randint(prev_y, self.final_pos[1])
-                waypoints.append((waypoints_x, waypoints_y))
-                
-                prev_y = waypoints_y # update prev_y
-                
-            waypoints.append(end)
+        elif self.case == 3: # u turn
+            self.mid = (middle_x, middle_y - 100)
+            self.end = (middle_x, 0)
+            waypoints.append(self.mid)
+            waypoints.append(self.end)
+        
         return waypoints
     
     def compute_path(self):

@@ -16,7 +16,7 @@ from trajectory_prediction import weighted_moving_average
 pygame.init()
 
 # Screen dimensions
-WIDTH, HEIGHT = 1600, 800
+WIDTH, HEIGHT = 1400, 800
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Car and Pedestrian Simulation")
 
@@ -99,7 +99,7 @@ def car_control_logic_active(car: Car, pedestrians: list[Pedestrian], distance_t
     for pedestrian in pedestrians:
         if pedestrian.pedestrian_id not in precomputed_paths:
             continue
-        
+
         if len(precomputed_paths[pedestrian.pedestrian_id]["precomputed_path"]) >= 2:
             precomputed_centered_path = [(x + pedestrian.width // 2, y) for x, y in precomputed_paths[pedestrian.pedestrian_id]["precomputed_path"]]
             pygame.draw.lines(screen, RED, False, precomputed_centered_path, 3)
@@ -151,7 +151,7 @@ def car_control_logic_passive(car: Car, pedestrians: list[Pedestrian], xyxys, co
 def main(flag: bool, granularity_size: int, n_rounds: int):
     running = True # game loop
     car = Car(CAR_IMAGE)
-    num_pedestrian = 3
+    num_pedestrian = 1
     pedestrians = [Pedestrian(PEDESTRIAN_IMAGE, id=i) for i in range(num_pedestrian)]
     
     if flag == "active":
@@ -179,7 +179,7 @@ def main(flag: bool, granularity_size: int, n_rounds: int):
 
         # feed image into YOLO model
         xyxys, confidences, class_ids = predict(screenshot)
-
+ 
         # Check if the car reaches the end of the frame
         # if yes, start a new round
         if car.rect.x + car.width >= WIDTH:
