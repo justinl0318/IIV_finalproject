@@ -5,6 +5,7 @@ import sys
 import time
 import math
 import threading
+import random
 from flask import Flask, request, jsonify
 from object import Car, Pedestrian
 from object import CAR_WIDTH, CAR_HEIGHT
@@ -96,6 +97,61 @@ def predict(screenshot):
 
     return xyxys, confidences, class_ids
 
+def is_entering(path):
+
+    cur_pos_y = path[0][1]
+    next_pos_y = path[1][1]
+
+    return ((HEIGHT / 2 - next_pos_y) * (next_pos_y - cur_pos_y) >= 0)
+
+def display_text_for_t_seconds(text, duration):
+    # Define a font and size
+    font = pygame.font.Font(None, 74)
+    
+    # Define the text color
+    text_color = (255, 255, 255)  # White
+    
+    # Render the text
+    text_surface = font.render(text, True, text_color)
+    
+    start_ticks = pygame.time.get_ticks()  # Get the starting time
+    while True:
+        # Calculate elapsed time
+        elapsed_time = (pygame.time.get_ticks() - start_ticks) / 1000
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+        
+        if elapsed_time < duration:
+            # Clear the screen
+            screen.fill((0, 0, 0))  # Fill screen with black
+
+            # Get the rectangle of the text
+            text_rect = text_surface.get_rect(center=(400, 300))  # Centered at (400, 300)
+
+            # Blit the text surface onto the screen surface
+            screen.blit(text_surface, text_rect)
+            
+            # Update the display
+            pygame.display.flip()
+        else:
+            break
+
+def collision_detection(car: Car, pedestrian: Pedestrian):
+    car_pos = (car.rect.x, car.rect.y)
+    pedestrian_pos = (pedestrian.rect.x, pedestrian.rect.y)
+    dist = get_distance(car_pos, pedestrian_pos) 
+    print("DIST: ", dist)
+    if dist <= 110: 
+        # Collide!
+        # print("COLLIDECOLLIDECOLLIDECOLLIDECOLLIDECOLLIDECOLLIDECOLLIDECOLLIDECOLLIDECOLLIDECOLLIDE")
+        display_text_for_t_seconds("Collide!", 1)
+        return True
+    
+    return False
+
 # active prediction of pedestrian trajectory
 def car_control_logic_active(car: Car, pedestrians: list[Pedestrian], metric, distance_threshold=200):
 
@@ -172,13 +228,13 @@ def car_control_logic_passive(car: Car, pedestrians: list[Pedestrian], xyxys, co
         pygame.draw.lines(screen, RED, False, future_centered_trajectory, 2)
 
         if metric == 'ttc':
-            print(future_centered_trajectory)
+            # print(future_centered_trajectory)
             car_ttc, pedestrian_ttc, pos = calculate_ttc(car, pedestrian, future_centered_trajectory)
 
             # Deceleration logic
             if car_ttc == -1:
                 continue
-            elif -30 < car_ttc - pedestrian_ttc and car_ttc - pedestrian_ttc < 30 and pos[0] - car.rect.x < 400:
+            elif -30 < car_ttc - pedestrian_ttc and car_ttc - pedestrian_ttc < 30 and pos[0] - car.rect.x < 350:
                 car.decelerate_flag = True
                 # print("car ttc: " + str(car_ttc) + "pedestrian ttc: " + str(pedestrian_ttc))
                 break
@@ -230,7 +286,8 @@ def main(flag: bool, granularity_size: int, n_rounds: int, metric: bool):
             rounds += 1
             car.start_new_round()
             for pedestrian in pedestrians:
-                pedestrian.case += 1
+                pedestrian.case = random.randrange(4)
+                pedestrian.collide = False
                 pedestrian.start_new_round()
 
         if paused % 2 == 0:
@@ -244,12 +301,14 @@ def main(flag: bool, granularity_size: int, n_rounds: int, metric: bool):
             
             # move the car
             car.update()
-            print(car.decelerate_flag)
+            # print(car.decelerate_flag)
             
             # Move pedestrian
             for pedestrian in pedestrians:
                 dataset.append((pedestrian.rect.x, pedestrian.rect.y))
                 pedestrian.update()
+                if pedestrian.collide is False:
+                    pedestrian.collide = collision_detection(car, pedestrian)
 
                 if flag == "active":
                     pedestrian.send_trajectory_to_car()

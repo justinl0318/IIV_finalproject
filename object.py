@@ -26,10 +26,10 @@ class Car:
         self.rect = self.image.get_rect()
         self.rect.topleft = (0, (HEIGHT - self.height) // 2)
         
-        self.max_speed = 12
+        self.max_speed = 15
         self.speed = self.max_speed
         self.acceleration = 1
-        self.deceleration = 2
+        self.deceleration = 0.5
 
         self.decelerate_flag = False
 
@@ -67,7 +67,9 @@ class Pedestrian:
 
         self.speed = 9
 
-        self.case = random.randrange(4)
+        self.case = 3
+
+        self.collide = False
 
         # The pedestrian is entering the intersection initially
         # Update this flag after he pass the middle of the screen
